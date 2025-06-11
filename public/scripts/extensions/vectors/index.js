@@ -98,6 +98,7 @@ const settings = {
     chunk_size_db: 2500,
     chunk_count_db: 5,
     overlap_percent_db: 0,
+    file_cooldown_db: 0,
     file_template_db: 'Related information:\n{{text}}',
     file_position_db: extension_prompt_types.IN_PROMPT,
     file_depth_db: 4,
@@ -107,6 +108,7 @@ const settings = {
     enabled_world_info: false,
     enabled_for_all: false,
     max_entries: 5,
+    wi_cooldown: 0,
 };
 
 const moduleWorker = new ModuleWorkerWrapper(synchronizeChat);
@@ -121,6 +123,20 @@ const vectorApiRequiresUrl = ['llamacpp', 'vllm', 'ollama', 'koboldcpp'];
  */
 function getFileCollectionId(fileUrl) {
     return `file_${getStringHash(fileUrl)}`;
+}
+
+/**
+ * Checks if the given text appears in the last N chat messages.
+ * @param {string} text Text to search for
+ * @param {number} count Number of messages to check
+ * @returns {boolean} True if text is found
+ */
+function isTextInLastMessages(text, count) {
+    if (!count || count <= 0) return false;
+    const chat = getContext().chat;
+    if (!Array.isArray(chat)) return false;
+    const normalized = collapseNewlines(String(text)).toLowerCase();
+    return chat.slice(-count).some(m => String(m.mes).toLowerCase().includes(normalized));
 }
 
 async function onVectorizeAllClick() {
@@ -474,7 +490,11 @@ async function processFiles(chat) {
             const queryText = await getQueryText(chat, 'file');
             const fileChunks = await retrieveFileChunks(queryText, collectionId);
 
-            message.mes = `${fileChunks}\n\n${message.mes}`;
+            if (!isTextInLastMessages(fileChunks, settings.file_cooldown_db)) {
+                message.mes = `${fileChunks}\n\n${message.mes}`;
+            } else {
+                console.debug('Vectors: Attachment chunks suppressed by cooldown');
+            }
         }
     } catch (error) {
         console.error('Vectors: Failed to retrieve files', error);
@@ -534,6 +554,11 @@ async function injectDataBankChunks(queryText, collectionIds) {
 
         if (!textResult) {
             console.debug('Vectors: No Data Bank chunks found');
+            return;
+        }
+
+        if (isTextInLastMessages(textResult, settings.file_cooldown_db)) {
+            console.debug('Vectors: Data Bank chunks suppressed by cooldown');
             return;
         }
 
@@ -1445,8 +1470,15 @@ async function activateWorldInfo(chat) {
         return;
     }
 
-    console.log(`Vectors: Activated ${activatedEntries.length} WI entries`, activatedEntries);
-    await eventSource.emit(event_types.WORLDINFO_FORCE_ACTIVATE, activatedEntries);
+    const filteredEntries = activatedEntries.filter(e => !isTextInLastMessages(e.content, settings.wi_cooldown));
+
+    if (filteredEntries.length === 0) {
+        console.debug('Vectors: WI entries suppressed by cooldown');
+        return;
+    }
+
+    console.log(`Vectors: Activated ${filteredEntries.length} WI entries`, filteredEntries);
+    await eventSource.emit(event_types.WORLDINFO_FORCE_ACTIVATE, filteredEntries);
 }
 
 jQuery(async () => {
@@ -1658,6 +1690,12 @@ jQuery(async () => {
         saveSettingsDebounced();
     });
 
+    $('#vectors_file_cooldown_db').val(settings.file_cooldown_db).on('input', () => {
+        settings.file_cooldown_db = Number($('#vectors_file_cooldown_db').val());
+        Object.assign(extension_settings.vectors, settings);
+        saveSettingsDebounced();
+    });
+
     $('#vectors_overlap_percent').val(settings.overlap_percent).on('input', () => {
         settings.overlap_percent = Number($('#vectors_overlap_percent').val());
         Object.assign(extension_settings.vectors, settings);
@@ -1716,6 +1754,12 @@ jQuery(async () => {
 
     $('#vectors_max_entries').val(settings.max_entries).on('input', () => {
         settings.max_entries = Number($('#vectors_max_entries').val());
+        Object.assign(extension_settings.vectors, settings);
+        saveSettingsDebounced();
+    });
+
+    $('#vectors_wi_cooldown').val(settings.wi_cooldown).on('input', () => {
+        settings.wi_cooldown = Number($('#vectors_wi_cooldown').val());
         Object.assign(extension_settings.vectors, settings);
         saveSettingsDebounced();
     });

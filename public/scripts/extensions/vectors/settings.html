@@ -206,8 +206,11 @@
                     </ul>
                 </div>
                 <div class="flex-container">
-                    <div class="flex1">
-                        <!--  Vacant for future use -->
+                    <div class="flex1" title="Cooldown before reusing an entry">
+                        <label for="vectors_wi_cooldown" >
+                            <small data-i18n="Cooldown">Cooldown</small>
+                        </label>
+                        <input id="vectors_wi_cooldown" type="number" class="text_pole widthUnset" min="0" max="9999" />
                     </div>
                     <div class="flex1" title="Maximum number of entries to be activated">
                         <label for="vectors_max_entries" >
@@ -300,6 +303,14 @@
                             <small data-i18n="Retrieve chunks">Retrieve chunks</small>
                         </label>
                         <input id="vectors_chunk_count_db" type="number" class="text_pole" min="1" max="99999" />
+                    </div>
+                </div>
+                <div class="flex-container">
+                    <div class="flex1" title="Cooldown before reinserting chunks">
+                        <label for="vectors_file_cooldown_db">
+                            <small data-i18n="Cooldown">Cooldown</small>
+                        </label>
+                        <input id="vectors_file_cooldown_db" type="number" class="text_pole" min="0" max="9999" />
                     </div>
                 </div>
                 <div class="flex-container flexFlowColumn">
